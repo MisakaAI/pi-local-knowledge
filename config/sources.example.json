@@ -1,0 +1,35 @@
+{
+  "store": "~/.local/share/pi-local-knowledge",
+  "sources": [
+    {
+      "id": "python-3.12.3",
+      "name": "python",
+      "version": "3.12.3",
+      "type": "url",
+      "location": "https://docs.python.org/ftp/python/doc/3.12.3/python-3.12.3-docs-html.tar.bz2"
+    },
+    {
+      "id": "python-3.11.9",
+      "name": "python",
+      "version": "3.11.9",
+      "type": "url",
+      "location": "https://docs.python.org/ftp/python/doc/3.11.9/python-3.11.9-docs-html.tar.bz2"
+    },
+    {
+      "id": "project-manual",
+      "name": "example",
+      "version": "1.0.0",
+      "type": "local",
+      "location": "../tests/fixtures/manual"
+    },
+    {
+      "id": "git-example",
+      "name": "flask",
+      "version": "3.1.0",
+      "type": "git",
+      "location": "https://github.com/pallets/flask.git",
+      "ref": "3.1.0",
+      "subdir": "docs"
+    }
+  ]
+}
