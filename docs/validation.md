@@ -14,7 +14,8 @@
 
 ## 1. 自动化测试
 
-`npm test`：**13/13 通过**（约 0.3 秒，临时目录隔离，不联网）。
+`npm test`：**27/27 通过**（不到 1 秒，临时目录隔离，不联网）。`tests/test_knowledge.py` 是首版用例，`tests/test_extended.py` 覆盖后续改进。
+仓库的 GitHub Actions 工作流（`.github/workflows/test.yml`）在 Python 3.11–3.13 上运行这些测试，并运行下面第 5 节的 Pi 冒烟测试。
 
 覆盖：
 
@@ -27,6 +28,11 @@
 - import、更新后的新内容、旧快照清理、空文档更新失败保留旧索引；两个独立 CLI 进程并发更新正确串行。
 - 缺少来源、无效查询、无效 offset、未知章节/版本等常见错误。
 - ZipSlip、绝对路径、Windows 盘符/反斜线路径、压缩包链接及本地软链接拒绝；校验值失败与文件限额。
+- 依赖名大小写/分隔符归一化、AND 无结果时放宽为任一关键词、项目未声明文档的告警汇总、中文子串搜索。
+- `sources`、不带来源的 `update`、自动/手动 `gc`、移动文档库目录后仍可读取和删除、快照缺失时 `rebuild` 不中断、参数校验错误信息。
+- Sphinx 侧边栏/永久链接/`<head>` 过滤与表格分隔；Markdown front matter、Setext 标题、四反引号围栏；RST 上下双线标题；默认与自定义 `exclude`。
+- Cargo.lock、go.mod、Pipfile.lock、`.tool-versions`、rust-toolchain、yarn.lock（多版本按直接依赖范围选择）、pnpm-lock.yaml、Poetry 依赖表；
+  向上查找到 Git 根目录且最近层优先、Git 仓库外不向上查找；损坏的 JSON/TOML 不影响其他证据。
 
 `python3 -m compileall -q backend tests`：通过。
 
@@ -83,13 +89,22 @@ python3 tests/real-docs.py --store config/.validation/store
 
 ## 5. 实际 Pi 环境加载和工具调用
 
-执行：
+冒烟测试默认在临时目录中安装 `tests/fixtures/manual`，不需要事先下载 Python 文档：
+
+```bash
+npm install --no-save @earendil-works/pi-coding-agent   # 或设置 PI_SDK_PATH 指向已安装的包目录
+npm run smoke
+```
+
+设置 `PI_KNOWLEDGE_HOME` 时则使用该文档库，并按下面的 Python 3.12.3 数据断言：
 
 ```bash
 PI_KNOWLEDGE_HOME="$PWD/config/.validation/store" \
 PI_SDK_PATH=~/.npm/_npx/2453649666e7772c/node_modules/@earendil-works/pi-coding-agent \
 node tests/pi-smoke.mjs
 ```
+
+测试还检查已安装文档清单出现在工具描述中。以下是首版使用 Python 文档时的记录：
 
 结果：
 

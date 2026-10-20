@@ -57,7 +57,7 @@
 | 字段 | 含义 |
 |---|---|
 | `id` | 来源唯一标识；安装、更新等管理操作使用它 |
-| `name` | 文档对应的语言或依赖名，例如 `python`、`flask`；建议小写，Python 包名使用 `-` 而非 `_` |
+| `name` | 文档对应的语言或依赖名，例如 `python`、`flask`、`@vue/runtime-core`、`github.com/gin-gonic/gin`；与项目依赖比较时忽略大小写及 `-`/`_`/`.` 的差别 |
 | `version` | 精确的文档版本。同名不同版本可并存；安装同名同版本会事务性替换 |
 | `type` | `url`（HTTPS 压缩包或单文件）、`archive`（本地或 HTTPS 压缩包）、`git`、`local`（本地文件或目录） |
 | `location` | URL 或路径；相对路径相对于配置文件目录 |
@@ -65,14 +65,23 @@
 | `ref` | Git 分支/标签，默认使用 `version`；实际 commit SHA 会记录。需要固定来源时使用受控标签并核对 SHA |
 | `sha256` | 可选的下载内容校验值；建议从可信渠道获取并固定 |
 | `filename` | URL 单文件没有扩展名时指定文件名，例如 `reference.md` |
+| `exclude` | 可选，额外排除的 glob 列表，与来源内路径（压缩包成员路径，或相对本地目录 / Git `subdir` 的路径）比较，`*` 可跨目录，例如 `["*/whatsnew/*", "*/changelog.md"]` |
 
 支持 `.html`、`.htm`、`.md`、`.markdown`、`.rst`、`.txt`。同一来源可以混合这些格式。
+
+以下内容始终跳过，避免重复或无意义的结果：`.git`、`node_modules`、`__pycache__` 目录，
+Sphinx 生成的 `_sources`（与 HTML 重复的 RST 源码副本）、`_static`、`_images`、`_downloads` 目录，
+以及 `genindex*.html`、`search.html`、`searchindex.*`、`py-modindex.html`、`np-modindex.html`、`404.html`。
+
+Git 来源只复制 `subdir` 下的文件，仓库其他部分不会影响文件数限额；仓库中的符号链接不会被跟随，只记录跳过数量 `skipped_symlinks`。
 
 ## 安装与管理
 
 ```bash
+python3 backend/knowledge.py sources            # 配置中的来源及是否已安装
 python3 backend/knowledge.py install --source my-library
 python3 backend/knowledge.py update --source my-library
+python3 backend/knowledge.py update             # 省略 --source：重新获取全部已安装的配置来源
 
 # 一次性导入文件、目录或压缩包，不必先修改来源配置
 python3 backend/knowledge.py import --name my-library --version 2.4.1 --path /path/to/docs
@@ -80,8 +89,10 @@ python3 backend/knowledge.py import --name other --version 1.0.0 --path /path/to
 
 python3 backend/knowledge.py list
 python3 backend/knowledge.py detect --cwd /path/to/project
+python3 backend/knowledge.py search --name my-library --version 2.4.1 --query 'Client.connect'
 python3 backend/knowledge.py rebuild
 python3 backend/knowledge.py remove --name my-library --version 2.4.1
+python3 backend/knowledge.py gc                 # 清理残留的临时目录和未引用快照
 ```
 
 全局参数放在 action 前，例如：
@@ -93,25 +104,36 @@ python3 backend/knowledge.py --config /path/to/sources.json --store /tmp/docs in
 `update` 会重新获取配置中的来源，但不会自动升级 `version`；要安装新版本，需要添加新的配置条目。
 一次性 `import` 会保存原路径和明确给定的版本；若要反复更新，建议把来源写进配置，否则再次执行 `import` 即可替换。
 
-CLI 命令输出 JSON；失败时返回非零状态和 `error` 字段。Pi 中的对应管理命令为：
+CLI 命令输出 JSON；失败时返回非零状态和 `error` 字段（例如缺少必需参数时为 `install requires: source`）。
+`update` 不带来源时返回每个来源的结果列表，单个来源失败不影响其他来源。Pi 中的对应管理命令为：
 
 ```text
+/docs help
 /docs list
+/docs sources
 /docs detect
+/docs search python@3.12.3 Path.walk
 /docs install python-3.12.3
 /docs update python-3.12.3
-/docs import custom 1.0.0 /absolute/path/to/manual
+/docs update
+/docs import custom 1.0.0 ~/manuals/custom
 /docs rebuild
 /docs remove custom 1.0.0
+/docs gc
 ```
 
-`/docs import` 会把版本之后的剩余文本视为路径，可包含空格，不需要 shell 引号；不展开 `~`，请使用绝对路径。
+在 Pi 中输入 `/docs ` 后可按 Tab 补全操作名、来源 ID、已安装的文档名称和版本。
+`list`、`sources`、`detect`、`search` 等输出为易读文本；长时间的安装/更新会在状态栏显示进度提示。
+`/docs search` 的第一个参数形如 `name@version` 时搜索该版本，否则按项目识别的版本搜索。
+
+`/docs import` 会把版本之后的剩余文本视为路径，可包含空格，不需要 shell 引号；相对路径相对 Pi 工作目录，开头的 `~` 会展开为用户目录。
 管理操作由用户命令执行，模型只获得搜索和读取工具，不获得安装/删除工具。自动化场景建议直接使用 Python CLI。
 
 ## 更新与存储行为
 
 下载、解析或建立索引失败时，不会替换旧版本。写操作跨进程串行，SQLite 事务确保检索不会看到半套新索引。
-已安装文档采用独立快照，删除原导入目录不影响已安装索引。
+已安装文档采用独立快照，删除原导入目录不影响已安装索引。数据库只记录快照目录名，整个文档库目录可以移动或改名。
 
 章节 ID 包含版本和内容摘要；文档更新后旧 ID 可能失效，重新搜索即可。管理命令执行期间不要手动修改库快照。
-被强制终止的进程可能留下临时 `stage-*` 或未引用的 `doc-*` 文件；首版没有自动垃圾回收，只有确认数据库未引用后才能手动清理。
+被强制终止的进程可能留下临时 `stage-*` 或未引用的 `doc-*` 目录；每次写操作结束时会在持有写锁的情况下自动清理，也可以手动执行 `gc`。
+`rebuild` 中某个文档的快照缺失或损坏时，该条目返回 `error`，其他文档照常重建。

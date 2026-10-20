@@ -6,11 +6,21 @@
 文档保存在本地，不会每轮对话自动塞进 AI 上下文；只有搜索摘要和主动读取的章节会提供给模型。
 插件不使用向量数据库、Embedding 或常驻服务。
 
+主要特性：
+
+- **严格按版本检索**：从锁文件和依赖声明中识别项目版本（Python、JavaScript、Rust、Go 等，monorepo 子目录可用），
+  只返回完全匹配版本的文档，绝不静默改用其他版本。
+- **省上下文**：搜索只返回少量摘要，正文按章节分页读取；模型从工具描述中得知已安装哪些文档。
+- **多种来源**：HTTPS 压缩包或单文件、本地目录/文件/压缩包、Git 仓库；支持 HTML、Markdown、RST、纯文本，自动过滤 Sphinx 等站点的导航和重复源码。
+- **中英文检索**：英文 API 名称使用 FTS5 全文检索，中文关键词使用子串匹配。
+- **安全优先**：安装阶段才联网，压缩包逐项校验，不执行项目或文档中的代码。
+
 ## 安装要求
 
 - 已安装 [Pi Coding Agent](https://github.com/badlogic/pi-mono)；
 插件使用 Pi 自带的 Extension API，无需额外 `npm install`。
 - Python 3.11 或更新版本，且 Python 自带的 SQLite 支持 FTS5（多数常见环境默认支持）。
+可用 `PI_KNOWLEDGE_PYTHON` 指定解释器。
 - Linux 或 macOS。Windows 暂请在 WSL 中使用。
 - 只有从 Git 下载文档时才需要安装 Git。
 
@@ -27,7 +37,7 @@ pi install "$PWD"
 ```
 
 不要只复制 `src/index.ts`：它需要仓库中的 `backend/` 等文件。
-安装后插件提供两个检索工具 `local_docs_search`、`local_docs_read`，以及 `/docs` 文档管理命令。
+安装后插件提供两个检索工具 `local_docs_search`、`local_docs_read`，以及 `/docs` 文档管理命令（`/docs help` 查看用法，支持 Tab 补全）。
 
 ## 下载并使用离线文档
 
@@ -55,12 +65,15 @@ python3 backend/knowledge.py read --id '<上一步结果中的章节ID>' --lengt
 Pi 中可通过 `/docs` 管理文档，例如：
 
 ```text
-/docs list
+/docs sources                         # 查看配置的来源及是否已安装
 /docs install python-3.12.3
-/docs detect
+/docs list
+/docs detect                          # 查看当前项目识别出的依赖版本
+/docs search python@3.12.3 Path.walk  # 自己试搜一下
+/docs update                          # 重新获取全部已安装来源
 ```
 
-> `install` 会联网下载并建立本地索引；下载完成后搜索和阅读可离线使用。、
+> `install` 会联网下载并建立本地索引；下载完成后搜索和阅读可离线使用。
 > 示例 Python 文档包来自 [Python 官方离线文档下载页](https://docs.python.org/3/download.html)，对应固定版本，并非抓取网页。
 
 ## 使用自己的文档
@@ -82,4 +95,4 @@ Pi 中可通过 `/docs` 管理文档，例如：
 - [测试与验证](docs/validation.md)：运行测试及集成验证方式
 
 本项目在 Pi 1.3.0、Node 24.10.0、Python 3.12.3、Linux 环境验证。
-插件实现和目录结构见 `src/`、`backend/`、`config/`、`tests/`。
+插件实现和目录结构见 `src/`、`backend/`、`config/`、`tests/`。运行 `npm test` 执行后端测试，`npm run smoke` 在真实 Pi 中加载插件做冒烟测试。
